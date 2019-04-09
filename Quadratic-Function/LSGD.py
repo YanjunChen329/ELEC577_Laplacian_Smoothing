@@ -62,7 +62,7 @@ def runner(x0, func, optim, vec, order, sigma, p):
     
     r = dict(xs=[x0], ys=[0*x0], fs=[func(x0)[0]], dfs=[func(x0)[1]])
     fs, dfs, xs, ys = r['fs'], r['dfs'], r['xs'], r['ys']
-    print('fs and dfs: ', fs, dfs)
+    # print('fs and dfs: ', fs, dfs)
     k = 0
     err = 1
     while fs[-1] > p['tol'] and k < p['maxiter']:
@@ -73,8 +73,8 @@ def runner(x0, func, optim, vec, order, sigma, p):
         ys.append(y)
         err = np.linalg.norm(df)
         
-        if k % 100 == 0:
-            print('[%d] f: %f, df: %f'%(k, f, err))
+        # if k % 100 == 0:
+            # print('[%d] f: %f, df: %f'%(k, f, err))
         k += 1
     print('--------------')
     return r
@@ -123,7 +123,6 @@ plt.plot(r_gdlap1['fs'], 'g', lw=1, label='Smoothing')
 plt.xscale('log')
 plt.yscale('log')
 plt.legend()
-plt.xlim([10, opt['maxiter']])
 plt.grid()
 plt.xlabel('iterations')
 plt.ylabel('|f(x) - f(x*)|')

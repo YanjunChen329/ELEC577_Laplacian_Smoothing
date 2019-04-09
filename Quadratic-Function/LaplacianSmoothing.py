@@ -4,8 +4,8 @@ import argparse
 from numpy.fft import fft, ifft
 
 def make_vec(order, ndim):
+
     if order < 1:
-        print("Order not valid.")
         return np.zeros(ndim)
     
     Mat = np.zeros(shape=(order, 2*order+1))
@@ -37,7 +37,7 @@ def ls_grad(loss_grad, ndim, order, sigma):
     vec = make_vec(order, ndim)
     coef = (-1) ** order * sigma
     denom = 1 + coef * fft(vec)
-    return (lambda x: np.squeeze(np.real(ifft(fft(x) / denom))))
+    return (lambda x: np.squeeze(np.real(ifft(fft(loss_grad(x)) / denom))))
 
 
 def LS_grad_descent(init_x, loss, loss_grad, stepsize, iter_num, sigma, order, ndim, cal_dist=False, optimal_x=0):
@@ -55,13 +55,9 @@ ndim = 3
 a = np.random.rand(ndim)
 loss = lambda x: np.linalg.norm(x - a) ** 2
 loss_grad = lambda x: x
-stepsize = lambda i: 0.5
-sigma = 1
+stepsize = lambda i: 1. / (10 ** (3 + i / 10000.))
+sigma = 10.
 order = 2
-iter_num = 100
-init_x = np.random.rand(ndim)
+iter_num = 10000
+init_x = np.ones(ndim)
 x_loss, dists = LS_grad_descent(init_x, loss, loss_grad, stepsize, iter_num, sigma, order, ndim, cal_dist=True, optimal_x=a)
-
-
-
-
