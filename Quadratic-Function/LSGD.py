@@ -13,8 +13,9 @@ ap = parser.add_argument
 ap('-n', help='dim.', type=int, default=100)
 ap('--maxiter', help='max. iter', type=int, default=2.5e4)
 ap('-sigma', help='sigma.', type=float, default=10.0)
-ap('-order', help='smoothing order', type=int, default=5)
+ap('-order', help='smoothing order', type=int, default=1)
 opt = vars(parser.parse_args())
+
 
 """
 Quadratic function
@@ -32,7 +33,6 @@ def quad_dfun(x):
     der = np.zeros_like(x, dtype=np.float32)
     for i in range(len((x))):
         coef = 1. if i%2 else 10.
-        eps = 0.1
         der[i] = 2*(x[i]-2.)/(coef**2) + eps*np.random.normal()
     return der
 
@@ -46,7 +46,7 @@ def gd_smoothing(k, x, y, func, vec, order, sigma, p, cache):
     """
     dt = p['dt']
     f, df = func(x)
-    dt = dt/(10**(k/10000)) # Learning rate decay
+    dt = dt/(10**(k/1000)) # Learning rate decay
     dt = dt*(max(1, k-1))/max(k, 1)
     if order > 0:
         # Use FFT to solve high order smoothing
