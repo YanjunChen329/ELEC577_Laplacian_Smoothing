@@ -57,86 +57,101 @@ if __name__ == '__main__':
     root = '../data'
     download = True
     
-    trans=transforms.Compose([
+    trans = transforms.Compose([
                        transforms.ToTensor(),
                        transforms.Normalize((0.1307,), (0.3081,))
                    ])
-    
-    train_set = dset.MNIST(root=root, train=True, transform=trans, download=download)
+
+    train_set = dset.MNIST(root=root, train=True, transform=trans, download=download)  # 60000
     test_set = dset.MNIST(root=root, train=False, transform=trans, download=download)
+    # data_size = len(train_set)
+    # ratio = 0.1
     
     # Convert the data into appropriate torch format.
     kwargs = {'num_workers':1, 'pin_memory':True}
     
-    batchsize_test = len(test_set)/2
+    batchsize_test = int(len(test_set)/2)
     print('Batch size of the test set: ', batchsize_test)
     test_loader = torch.utils.data.DataLoader(dataset=test_set,
                                               batch_size=batchsize_test,
-                                              shuffle=False, **kwargs
-                                             )
+                                              shuffle=False, **kwargs)
     
-    batchsize_train = 4 # Set batchsize here!
+    batchsize_train = 2  # Set batchsize here!
     print('Batch size of the train set: ', batchsize_train)
     train_loader = torch.utils.data.DataLoader(dataset=train_set,
                                                batch_size=batchsize_train,
-                                               shuffle=True, **kwargs
-                                              )
+                                               shuffle=True, **kwargs)
     
     #--------------------------------------------------------------------------
     # Build the model
     #--------------------------------------------------------------------------
-    net = LeNet1().cuda()
+    net = LeNet1().cuda() if use_cuda else LeNet1()
     sigma = 1.5
     lr = 0.01
     weight_decay = 5e-4
     optimizer = Grad_SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=weight_decay, nesterov=True)
-    
-    nepoch =200
-    for epoch in xrange(nepoch):
+    # optimizer = Grad_SJO_SGD(net.parameters(), lr=lr, sigma=sigma, momentum=0.9, weight_decay=weight_decay, nesterov=True)
+
+    nepoch = 20
+    for epoch in range(nepoch):
+        print()
         print('Epoch ID: ', epoch)
         #----------------------------------------------------------------------
         # Training
         #----------------------------------------------------------------------
-        if epoch >=40 and (epoch//40 == epoch/40.0):
-            lr = lr/5
+        if epoch >= 40 and (epoch//40 == epoch/40.0):
+            lr /= 5
             print("Descrease the Learning Rate, lr = ", lr)
             #optimizer = Grad_SJO_SGD(net.parameters(), lr=lr, sigma = sigma, momentum=0.9, nesterov=True)
-            optimizer = Grad_SJO_SGD(net.parameters(), lr=lr, sigma = sigma, momentum=0.9, weight_decay=weight_decay, nesterov=True)
+            optimizer = Grad_SJO_SGD(net.parameters(), lr=lr, sigma=sigma, momentum=0.9, weight_decay=weight_decay, nesterov=True)
             #optimizer = Grad_SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=weight_decay, nesterov=True)
         
-        correct = 0; total = 0; train_loss = 0
+        correct = 0
+        total = 0
+        train_loss = 0
         net.train()
+        # stop = ratio * (data_size / batchsize_train)
         for batch_idx, (x, target) in enumerate(train_loader):
+            # if batch_idx >= stop:
+                # break
             optimizer.zero_grad()
-            x, target = Variable(x.cuda()), Variable(target.cuda())
+            x, target = (Variable(x.cuda()), Variable(target.cuda())) if use_cuda else (Variable(x), Variable(target))
             score, loss = net(x, target)
             loss.backward()
             optimizer.step()
             
-            train_loss += loss.data[0]
+            train_loss += loss.data
             _, predicted = torch.max(score.data, 1)
             total += target.size(0)
             correct += predicted.eq(target.data).cpu().sum()
                 
-            progress_bar(batch_idx, len(train_loader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-            % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
-            
+            # progress_bar(batch_idx, len(train_loader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+            #         % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+            sys.stdout.write('\rEpoch: %d | Batch: %d | Loss: %.3f | Acc: %.3f%% (%d/%d)'
+                    % (epoch, batch_idx, train_loss/(batch_idx+1), 100.*float(correct)/total, correct, total))
+            sys.stdout.flush()
+
         #----------------------------------------------------------------------
         # Testing
         #----------------------------------------------------------------------
-        test_loss = 0; correct = 0; total = 0
+        test_loss = 0
+        correct = 0
+        total = 0
         net.eval()
         for batch_idx, (x, target) in enumerate(test_loader):
-            x, target = Variable(x.cuda(), volatile=True), Variable(target.cuda(), volatile=True)
+            x, target = Variable(x.cuda()), Variable(target.cuda())
             score, loss = net(x, target)
             
-            test_loss += loss.data[0]
+            test_loss += loss.data
             _, predicted = torch.max(score.data, 1)
             total += target.size(0)
             correct += predicted.eq(target.data).cpu().sum()
-            progress_bar(batch_idx, len(test_loader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-            % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
-        
+            # progress_bar(batch_idx, len(test_loader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+            #         % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
+
+        print('\nTesting: Loss: %.3f | Acc: %.3f%% (%d/%d)'
+              % (train_loss / total, 100. * float(correct) / total, correct, total))
+
         #----------------------------------------------------------------------
         # Save the checkpoint
         #----------------------------------------------------------------------

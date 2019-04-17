@@ -12,7 +12,7 @@ class Optimizer(object):
     """
     Base class for all optimizers.
     Arguments:
-        params (iterable): an iterable of "class:'Variable's" or "class:'dict's". Specifies what Variables should be optimized.           
+        params (iterable): an iterable of "class:'Variable's" or "class:'dict's". Specifies what Variables should be optimized.
         defaults: (dict): a dict containing default values of optimization options (used when a parameter group doesn't specify them).
     """
     def __init__(self, params, defaults):

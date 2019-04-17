@@ -4,7 +4,8 @@ Grad SJO
 import numpy as np
 import torch
 import random
-import pytorch_fft.fft as fft
+# import pytorch_fft
+# import pytorch_fft.fft as fft
 from Grad_optimizer import Optimizer, required
 from torch.autograd import Variable
 import time
@@ -40,22 +41,26 @@ class Grad_SJO_SGD(Optimizer):
         
         sizes = []
         for param in self.param_groups[0]['params']:
+            # get size n for each layer of the deep nets
             sizes.append(torch.numel(param))
         
         coeffs = []
         zero_Ns = []
         for size in sizes:
-            c = np.zeros(shape=(1, size))
+            # Construct LS matrix for each layer
+            c = np.zeros(shape=(1, size, 1))
             c[0, 0] = -2.
             c[0, 1] = 1.
             c[0, -1] = 1.
             c = torch.Tensor(c).cuda()
-            zero_N = torch.zeros(1, size).cuda()
-            c_fft, _ = fft.fft(c, zero_N)
-            coeff = 1. / (1.-sigma*c_fft)
+            zero_N = torch.zeros(1, size, 1).cuda()
+            coeff_sig = torch.cat((c, zero_N), dim=2).cuda()
+            c_fft = torch.fft(coeff_sig, signal_ndim=1)
+            c_fft = c_fft[:, :, 0].view(c_fft.shape[0], c_fft.shape[1], -1)
+            coeff = 1. / (1.-sigma*c_fft)  # denominator of LS that's invariant
             coeffs.append(coeff)
             zero_Ns.append(zero_N)
-        
+
         self.sigma = sigma
         self.sizes = sizes
         self.coeffs = coeffs
@@ -90,18 +95,21 @@ class Grad_SJO_SGD(Optimizer):
             for param in group['params']:
                 if param.grad is None:
                     continue
-                tmp = param.grad.view(-1, self.sizes[idx])
+
+                # Reshape the gradient for computing fft
+                tmp = param.grad.view(-1, self.sizes[idx], 1)
                 tmp = tmp.data
-                re, im = fft.fft(tmp, self.zero_Ns[idx])
-                re = re*self.coeffs[idx]
-                im = im*self.coeffs[idx]
-                tmp = fft.ifft(re, im)[0]
-                tmp = tmp.view(param.grad.size())
-                param.grad.data = tmp
+                g_sig = torch.cat((tmp, self.zero_Ns[idx]), dim=2).cuda()
+                g_fft = torch.fft(g_sig, signal_ndim=1)  # size(1, X, 2)
+                coeff_2_mult = torch.cat((self.coeffs[idx], self.coeffs[idx]), dim=2)
+                g_fft *= coeff_2_mult
+                ifft_re = torch.ifft(g_fft, signal_ndim=1)[:, :, 0]
+                param.grad.data = ifft_re.view(param.grad.size())  # Replace with the new gradient
                 idx += 1
-                
+
                 d_p = param.grad.data
-                
+
+                # Rest of the code is the same as SGD
                 if weight_decay != 0:
                     d_p.add_(weight_decay, param.data)
                 
@@ -113,7 +121,6 @@ class Grad_SJO_SGD(Optimizer):
                     else:
                         buf = param_state['momentum_buffer']
                         buf.mul_(momentum).add_(1 - dampening, d_p)
-                    
                     if nesterov:
                         d_p = d_p.add(momentum, buf)
                     else:
